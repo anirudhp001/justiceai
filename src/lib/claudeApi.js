@@ -4,7 +4,12 @@ import { SYSTEM_PROMPT } from './systemPrompt';
 const RAG_BACKEND_URL = 'http://localhost:3001/api/chat';
 
 export async function sendMessage(conversationHistory, userMessage, options = {}) {
-  const { judgePersonality = 'Neutral', mode = 'copilot', jurisdiction = 'National' } = options;
+  const { 
+    judgePersonality = 'Neutral', 
+    mode = 'copilot', 
+    jurisdiction = 'National',
+    language = 'en'
+  } = options;
 
   try {
     const response = await fetch(RAG_BACKEND_URL, {
@@ -23,8 +28,9 @@ export async function sendMessage(conversationHistory, userMessage, options = {}
         mode: mode,
         jurisdiction: jurisdiction,
         basePrompt: SYSTEM_PROMPT,
-        provider: localStorage.getItem('justice_ai_provider') || 'ollama',
-        apiKeys: JSON.parse(localStorage.getItem('justice_ai_keys') || '{}')
+        provider: localStorage.getItem('justice_ai_provider') || 'grok',
+        apiKeys: JSON.parse(localStorage.getItem('justice_ai_keys') || '{}'),
+        language: language
       }),
     });
 

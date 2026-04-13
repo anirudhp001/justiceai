@@ -345,7 +345,7 @@ export default function FloatingVoiceButton({ onTranscription }) {
   const modeInfo = getModeInfo();
 
   return (
-    <div className="fixed bottom-8 right-8 z-[100] flex flex-col items-end gap-5">
+    <div className="fixed bottom-24 md:bottom-8 right-8 z-[100] flex flex-col items-end gap-5">
       <AnimatePresence>
         {isOpen && (
           <motion.div

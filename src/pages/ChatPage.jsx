@@ -9,8 +9,47 @@ import { CaseHistorySidebar } from '../components/chat/CaseHistorySidebar';
 import { sendMessage } from '../lib/claudeApi';
 import { parseAIResponse } from '../lib/parseAnalysis';
 import { generateSummary } from '../lib/generateSummary';
-import { Milestone, Sword, ShieldCheck, MapPin, AlertCircle } from 'lucide-react';
+import { Milestone, Sword, ShieldCheck, MapPin, AlertCircle, Globe, ChevronDown } from 'lucide-react';
 import DocumentScanningOverlay from '../components/chat/DocumentScanningOverlay';
+
+const BHASHINI_LANGUAGES = [
+  { code: 'en', name: 'English' },
+  { code: 'hi', name: 'Hindi' },
+  { code: 'bn', name: 'Bengali' },
+  { code: 'ta', name: 'Tamil' },
+  { code: 'te', name: 'Telugu' },
+  { code: 'mr', name: 'Marathi' },
+  { code: 'gu', name: 'Gujarati' },
+  { code: 'kn', name: 'Kannada' },
+  { code: 'ml', name: 'Malayalam' },
+  { code: 'pa', name: 'Punjabi' },
+  { code: 'or', name: 'Odia' },
+  { code: 'as', name: 'Assamese' },
+  { code: 'ur', name: 'Urdu' },
+  { code: 'sa', name: 'Sanskrit' },
+  { code: 'ks', name: 'Kashmiri' },
+  { code: 'gom', name: 'Konkani' },
+  { code: 'brx', name: 'Bodo' },
+  { code: 'doi', name: 'Dogri' },
+  { code: 'mai', name: 'Maithili' },
+  { code: 'mni', name: 'Manipuri' },
+  { code: 'ne', name: 'Nepali' },
+  { code: 'sd', name: 'Sindhi' },
+  { code: 'sat', name: 'Santali' },
+  { code: 'bho', name: 'Bhojpuri' },
+  { code: 'tcy', name: 'Tulu' },
+  { code: 'raj', name: 'Rajasthani' },
+  { code: 'bgc', name: 'Haryanvi' },
+  { code: 'hne', name: 'Chhattisgarhi' },
+  { code: 'mag', name: 'Magahi' },
+  { code: 'anp', name: 'Angika' },
+  { code: 'kmu', name: 'Kumaoni' },
+  { code: 'gbm', name: 'Garhwali' },
+  { code: 'awa', name: 'Awadhi' },
+  { code: 'mwr', name: 'Marwari' },
+  { code: 'mww', name: 'Mewati' },
+  { code: 'mup', name: 'Malvi' },
+];
 
 export default function ChatPage() {
   const location = useLocation();
@@ -41,12 +80,23 @@ export default function ChatPage() {
   const [mode, setMode] = useState('copilot'); // 'copilot' | 'simulator'
   const [judgePersonality, setJudgePersonality] = useState('Neutral'); // 'Strict' | 'Neutral' | 'Lenient'
   const [selectedJurisdiction, setSelectedJurisdiction] = useState('National');
+  const [selectedLanguage, setSelectedLanguage] = useState('en');
 
   // UI State
   const [isLoading, setIsLoading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [summary, setSummary] = useState('');
+
+  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'analysis' for mobile
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Calculate Progress
   const progress = analysis ? 100 : Math.min(Math.floor((messages.length - 1) * 25), 80);
@@ -79,7 +129,27 @@ export default function ChatPage() {
     }
   }, [location.state]);
 
-  // 3. Save History to localStorage whenever it changes
+  // 3. Handle Voice Transcription Event
+  useEffect(() => {
+    const handleTranscription = (event) => {
+      const text = event.detail.text;
+      if (text) handleSend(text);
+    };
+
+    window.addEventListener('justice-ai-transcription', handleTranscription);
+    return () => window.removeEventListener('justice-ai-transcription', handleTranscription);
+  }, [messages, mode, judgePersonality, selectedJurisdiction]); // Re-bind on critical state changes
+
+  // 4. Handle Voice Query from Redirect
+  useEffect(() => {
+    if (location.state?.voiceQuery) {
+      handleSend(location.state.voiceQuery);
+      // Clear location state to prevent re-triggering on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  // 5. Save History to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('justice_ai_history', JSON.stringify(history));
   }, [history]);
@@ -183,6 +253,7 @@ export default function ChatPage() {
         judgePersonality,
         mode,
         jurisdiction: selectedJurisdiction,
+        language: selectedLanguage
       });
       const { chatMessage, analysis: newAnalysis } = parseAIResponse(aiResponseRaw);
       const aiMsg = {
@@ -211,6 +282,7 @@ export default function ChatPage() {
         judgePersonality,
         mode,
         jurisdiction: selectedJurisdiction,
+        language: selectedLanguage
       });
       const { chatMessage, analysis: newAnalysis } = parseAIResponse(aiResponseRaw);
       const aiMsg = {
@@ -255,6 +327,29 @@ export default function ChatPage() {
     }
   };
 
+  const handleDeleteMessage = (id) => {
+    setMessages((prev) => {
+      const filtered = prev.filter((m) => m.id !== id);
+      
+      // Auto-save history after deletion
+      const title = filtered[1]?.content?.substring(0, 40) + '...' || 'Untitled Case';
+      const caseData = {
+        id: activeCaseId,
+        title,
+        messages: filtered,
+        analysis,
+        timestamp: new Date(),
+      };
+
+      setHistory((hist) => {
+        const otherCases = hist.filter((c) => c.id !== activeCaseId);
+        return [caseData, ...otherCases];
+      });
+
+      return filtered;
+    });
+  };
+
   const handleExport = () => {
     const textSummary = generateSummary(messages, analysis);
     setSummary(textSummary);
@@ -278,77 +373,99 @@ export default function ChatPage() {
           onDelete={deleteCase}
         />
 
-        <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden">
+        <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden relative">
+          
+          {/* Mobile Tab Switcher */}
+          {isMobile && (
+            <div className="flex bg-void/80 backdrop-blur-md border-b border-white/10 sticky top-0 z-20">
+              <button
+                onClick={() => setActiveTab('chat')}
+                className={`flex-1 py-4 text-[10px] font-extrabold uppercase tracking-[0.2em] italic border-b-2 transition-all ${activeTab === 'chat' ? 'text-gold border-gold bg-gold/5 shadow-luxe' : 'text-text-tertiary border-transparent'}`}
+              >
+                CONSULTATION_STREAM
+              </button>
+              <button
+                onClick={() => setActiveTab('analysis')}
+                className={`flex-1 py-4 text-[10px] font-extrabold uppercase tracking-[0.2em] italic border-b-2 transition-all ${activeTab === 'analysis' ? 'text-gold border-gold bg-gold/5 shadow-luxe' : 'text-text-tertiary border-transparent'}`}
+              >
+                STRATEGY_ANALYSIS
+              </button>
+            </div>
+          )}
+
           {/* Chat Side */}
-          <div className="flex-1 flex flex-col border-r border-white/5 order-2 md:order-1 h-full min-w-0">
+          <div 
+            className={`flex-1 flex flex-col border-r border-white/5 h-full min-w-0 ${isMobile && activeTab !== 'chat' ? 'hidden' : 'flex'}`}
+          >
             <div className="p-4 border-b border-white/5 bg-midnight-slate/50 flex flex-col gap-4">
               <div className="w-full bg-void border-2 border-gold/40 p-3 rounded-sm shadow-luxe flex items-center justify-center gap-3 italic">
-                <AlertCircle className="w-4 h-4 text-gold" />
-                <p className="text-[10px] text-gold font-extrabold uppercase tracking-[0.3em] text-center">
-                  INSTITUTIONAL_NOTICE: CONSULTATIONS_ARE_INFORMATIONAL. NO_ADVOCATE_CLIENT_PRIVILEGE.
+                <AlertCircle className="w-4 h-4 text-gold shrink-0" />
+                <p className="text-[9px] md:text-[10px] text-gold font-extrabold uppercase tracking-[0.2em] text-center leading-relaxed">
+                  INSTITUTIONAL_NOTICE: CONSULTATIONS_ARE_INFORMATIONAL. NO_ADVOCATE_PRIVILEGE.
                 </p>
               </div>
 
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex bg-void p-1 rounded-sm border-2 border-white/5 shadow-hard">
+              {/* Responsive Selector Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="flex bg-void p-1 rounded-sm border-2 border-white/5 shadow-hard w-full">
                   <button
                     onClick={() => setMode('copilot')}
-                    className={`flex items-center gap-2 px-6 py-2 rounded-sm text-[10px] font-extrabold tracking-[0.2em] uppercase transition-all italic ${mode === 'copilot' ? 'bg-gold text-midnight shadow-luxe' : 'text-text-tertiary hover:text-white'}`}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-sm text-[9px] font-extrabold tracking-[0.1em] uppercase transition-all italic ${mode === 'copilot' ? 'bg-gold text-midnight shadow-luxe' : 'text-text-tertiary hover:text-white'}`}
                   >
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>ASSISTANCE</span>
+                    <span>ASSIST</span>
                   </button>
-                  <div className="relative group">
-                    <button
-                      onClick={() => setMode('simulator')}
-                      className={`flex items-center gap-2 px-6 py-2 rounded-sm text-[10px] font-extrabold tracking-[0.2em] uppercase transition-all italic ${mode === 'simulator' ? 'bg-blue-600 text-white shadow-luxe' : 'text-text-tertiary hover:text-white'}`}
-                    >
-                      <Sword className="w-3.5 h-3.5" />
-                      <span>SIMULATION</span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setMode('simulator')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-sm text-[9px] font-extrabold tracking-[0.1em] uppercase transition-all italic ${mode === 'simulator' ? 'bg-blue-600 text-white shadow-luxe' : 'text-text-tertiary hover:text-white'}`}
+                  >
+                    <Sword className="w-3.5 h-3.5" />
+                    <span>MOOT_LAW</span>
+                  </button>
                 </div>
 
-                <div className="flex items-center gap-6">
-                   <div className="hidden lg:flex items-center gap-3">
+                <div className="grid grid-cols-2 lg:flex items-center gap-3">
+                   <div className="flex items-center gap-2 px-3 py-2 bg-void border-2 border-white/5 rounded-sm relative group">
                     <Milestone className="w-3.5 h-3.5 text-gold opacity-50" />
                     <select
                       value={judgePersonality}
                       onChange={(e) => setJudgePersonality(e.target.value)}
-                      className="bg-void border-2 border-white/5 rounded-sm px-4 py-2 text-[10px] font-extrabold text-gold uppercase tracking-widest focus:outline-none focus:border-gold/50 shadow-luxe appearance-none cursor-pointer italic"
+                      className="bg-transparent border-none p-0 text-[10px] font-extrabold text-gold uppercase tracking-widest focus:ring-0 cursor-pointer appearance-none italic w-full"
                     >
-                      <option value="Strict">STRICT_BENCH</option>
-                      <option value="Neutral">NEUTRAL_BENCH</option>
-                      <option value="Lenient">LENIENT_BENCH</option>
+                      <option value="Strict" className="bg-void">STRICT</option>
+                      <option value="Neutral" className="bg-void">NEUTRAL</option>
+                      <option value="Lenient" className="bg-void">LENIENT</option>
                     </select>
+                    <ChevronDown className="w-3 h-3 text-gold/30 absolute right-2 pointer-events-none" />
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <MapPin className="w-3.5 h-3.5 text-blue-400 opacity-50" />
+                  <div className="flex items-center gap-2 px-3 py-2 bg-void border-2 border-white/5 rounded-sm relative group">
+                    <Globe className="w-3.5 h-3.5 text-emerald-400 opacity-50" />
                     <select
-                      value={selectedJurisdiction}
-                      onChange={(e) => setSelectedJurisdiction(e.target.value)}
-                      className="bg-void border-2 border-white/5 rounded-sm px-4 py-2 text-[10px] font-extrabold text-white uppercase tracking-widest focus:outline-none focus:border-gold/50 shadow-luxe appearance-none cursor-pointer italic"
+                      value={selectedLanguage}
+                      onChange={(e) => setSelectedLanguage(e.target.value)}
+                      className="bg-transparent border-none p-0 text-[10px] font-extrabold text-white uppercase tracking-widest focus:ring-0 cursor-pointer appearance-none italic w-full"
                     >
-                      <option value="National">NATIONAL</option>
-                      <option value="Maharashtra">MAHARASHTRA</option>
-                      <option value="Delhi">DELHI</option>
-                      <option value="Karnataka">KARNATAKA</option>
-                      <option value="Tamil Nadu">TAMIL_NADU</option>
-                      <option value="West Bengal">WEST_BENGAL</option>
-                      <option value="Uttar Pradesh">UTTAR_PRADESH</option>
+                      {BHASHINI_LANGUAGES.map((lang) => (
+                        <option key={lang.code} value={lang.code} className="bg-void text-white">
+                          {lang.name.toUpperCase()}
+                        </option>
+                      ))}
                     </select>
+                    <ChevronDown className="w-3 h-3 text-white/20 absolute right-2 pointer-events-none" />
                   </div>
                 </div>
               </div>
             </div>
 
-            <ChatPanel messages={messages} isLoading={isLoading} />
+            <ChatPanel messages={messages} isLoading={isLoading} onDelete={handleDeleteMessage} />
             <ChatInput onSend={handleSend} onUpload={handleFileUpload} isLoading={isLoading} />
           </div>
 
           {/* Analysis Side */}
-          <div className="w-full md:w-[420px] lg:w-[480px] bg-midnight overflow-hidden order-1 md:order-2 h-full border-b md:border-b-0 border-white/5 shadow-premium">
+          <div 
+            className={`w-full md:w-[420px] lg:w-[480px] bg-midnight overflow-hidden h-full border-b md:border-b-0 border-white/5 shadow-premium ${isMobile && activeTab !== 'analysis' ? 'hidden' : 'flex'}`}
+          >
             <AnalysisPanel
               analysis={analysis}
               selectedJurisdiction={selectedJurisdiction}

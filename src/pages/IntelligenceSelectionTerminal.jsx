@@ -11,7 +11,8 @@ import {
   RefreshCcw,
   Key,
   Globe,
-  Zap
+  Zap,
+  Rocket
 } from 'lucide-react';
 import Header from '../components/ui/Header';
 import { useToast } from '../components/ui/Toast';
@@ -20,10 +21,11 @@ export default function IntelligenceSelectionTerminal() {
   const { addToast } = useToast();
   
   // Settings State
-  const [activeProvider, setActiveProvider] = useState('ollama');
+  const [activeProvider, setActiveProvider] = useState('grok');
   const [apiKeys, setApiKeys] = useState({
     gemini: '',
-    deepseek: ''
+    deepseek: '',
+    grok: ''
   });
   
   // UI State
@@ -146,6 +148,15 @@ export default function IntelligenceSelectionTerminal() {
                 onClick={setActiveProvider}
                 status="CLOUD"
               />
+              <ProviderCard 
+                id="grok"
+                title="xAI Grok"
+                description="Real-time strategic intelligence. High-bandwidth analysis for complex litigation."
+                icon={<Rocket className="w-5 h-5" />}
+                active={activeProvider === 'grok'}
+                onClick={setActiveProvider}
+                status="CLOUD"
+              />
             </div>
 
             {/* API Key Configuration Section */}
@@ -169,12 +180,12 @@ export default function IntelligenceSelectionTerminal() {
                   <div className="space-y-8 relative z-10">
                     <div className="space-y-4">
                       <label className="text-[10px] uppercase font-bold tracking-widest text-text-tertiary">
-                        {activeProvider === 'gemini' ? 'Gemini_API_Key' : 'DeepSeek_API_Key'}
+                        {activeProvider === 'gemini' ? 'Gemini_API_Key' : activeProvider === 'deepseek' ? 'DeepSeek_API_Key' : 'Grok_API_Key'}
                       </label>
                       <div className="relative group">
                         <input 
                           type="password"
-                          value={activeProvider === 'gemini' ? apiKeys.gemini : apiKeys.deepseek}
+                          value={activeProvider === 'gemini' ? apiKeys.gemini : activeProvider === 'deepseek' ? apiKeys.deepseek : apiKeys.grok}
                           onChange={(e) => setApiKeys(prev => ({
                             ...prev,
                             [activeProvider]: e.target.value

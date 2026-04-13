@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import ChatBubble from './ChatBubble';
 
-export default function ChatPanel({ messages, isLoading }) {
+export default function ChatPanel({ messages, isLoading, onDelete }) {
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -21,12 +21,17 @@ export default function ChatPanel({ messages, isLoading }) {
           {messages.map((msg) => (
             <ChatBubble
               key={msg.id}
+              id={msg.id}
               role={msg.role}
               content={msg.content}
               timestamp={msg.timestamp}
+              onDelete={onDelete}
             />
           ))}
           {isLoading && <TypingIndicator />}
+          
+          {/* Institutional Buffer for Sticky Input Bar */}
+          <div className="h-24 md:h-12" />
         </div>
       </div>
     </div>

@@ -126,31 +126,31 @@ export default function LawyerOnboardingPage() {
             <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:30px_30px]" />
             
             {/* Progress Bar */}
-            <div className="bg-void p-10 border-b-2 border-white/5 flex items-center justify-between relative z-10">
+            <div className="bg-void p-6 md:p-10 border-b-2 border-white/5 flex items-center justify-between relative z-10">
               {STEPS.map((step) => (
-                <div key={step.id} className="flex flex-col items-center gap-4 relative z-10">
+                <div key={step.id} className="flex flex-col items-center gap-2 md:gap-4 relative z-10">
                   <div
-                    className={`w-14 h-14 rounded-sm flex items-center justify-center transition-all duration-500 border-2 shadow-hard ${
+                    className={`w-10 h-10 md:w-14 md:h-14 rounded-sm flex items-center justify-center transition-all duration-500 border-2 shadow-hard ${
                       currentStep >= step.id
                         ? 'bg-gold border-gold-light/40 text-midnight'
                         : 'bg-void border-white/10 text-text-tertiary shadow-inner'
                     }`}
                   >
                     {currentStep > step.id ? (
-                      <CheckCircle2 className="w-6 h-6" />
+                      <CheckCircle2 className="w-5 h-5 md:w-6 md:h-6" />
                     ) : (
-                      <step.icon className="w-6 h-6" />
+                      <step.icon className="w-5 h-5 md:w-6 md:h-6" />
                     )}
                   </div>
                   <span
-                    className={`text-[9px] uppercase font-extrabold tracking-[0.3em] italic ${currentStep >= step.id ? 'text-white' : 'text-text-tertiary opacity-40'}`}
+                    className={`text-[8px] md:text-[9px] uppercase font-extrabold tracking-[0.2em] md:tracking-[0.3em] italic ${currentStep >= step.id ? 'text-white' : 'text-text-tertiary opacity-40'}`}
                   >
                     {step.label}
                   </span>
                 </div>
               ))}
               {/* Connector Lines */}
-              <div className="absolute top-[4.5rem] left-[15%] right-[15%] h-[2px] bg-white/5 -z-0 hidden md:block">
+              <div className="absolute top-[3.5rem] md:top-[4.5rem] left-[15%] right-[15%] h-[2px] bg-white/5 -z-0 hidden sm:block">
                 <motion.div
                   className="h-full bg-gold shadow-hard"
                   animate={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` }}
@@ -604,7 +604,10 @@ export default function LawyerOnboardingPage() {
           background: #020617;
           border: 2px solid rgba(255, 255, 255, 0.05);
           border-radius: 2px;
-          padding: 1rem 1.75rem;
+          padding: 0.75rem 1.25rem;
+          @media (min-width: 768px) {
+            padding: 1rem 1.75rem;
+          }
           font-size: 0.875rem;
           color: white;
           outline: none;

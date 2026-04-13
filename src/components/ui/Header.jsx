@@ -54,10 +54,10 @@ export default function Header({ onNewCase }) {
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden xl:flex items-center gap-1 bg-void/80 backdrop-blur-xl border-2 border-white/5 p-1 rounded-sm shadow-hard">
+          <nav className="hidden lg:flex items-center gap-0.5 bg-void/80 backdrop-blur-xl border-2 border-white/5 p-1 rounded-sm shadow-hard">
             {navLinks.map((link) => (
               <NavLink key={link.to} to={link.to} icon={link.icon}>
-                {link.label}
+                <span className="hidden 2xl:inline">{link.label}</span>
               </NavLink>
             ))}
           </nav>
@@ -74,10 +74,12 @@ export default function Header({ onNewCase }) {
 
             <button
               onClick={onNewCase}
-              className="hidden md:flex items-center gap-3 px-6 py-3 bg-gold text-midnight rounded-sm border-2 border-gold/20 font-extrabold text-[10px] uppercase tracking-widest hover:bg-gold-dark transition-all active:translate-x-[1px] active:translate-y-[1px] shadow-hard font-display italic"
+              className="hidden md:flex items-center gap-2 lg:gap-3 px-4 lg:px-6 py-3 bg-gold text-midnight rounded-sm border-2 border-gold/20 font-extrabold text-[10px] uppercase tracking-widest hover:bg-gold-dark transition-all active:translate-x-[1px] active:translate-y-[1px] shadow-hard font-display italic"
             >
               <Plus className="w-4 h-4" />
-              <span>START_NEW_ANALYSIS_DISPATCH</span>
+              <span className="hidden lg:inline xl:hidden">NEW_CASE</span>
+              <span className="hidden xl:inline">START_NEW_ANALYSIS</span>
+              <span className="lg:hidden">NEW</span>
             </button>
 
             <Link
@@ -125,7 +127,8 @@ function NavLink({ to, children, icon: Icon }) {
   return (
     <Link
       to={to}
-      className={`relative flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.2em] transition-all px-4 py-2 rounded-sm border-2 italic ${
+      title={typeof children === 'string' ? children : undefined}
+      className={`relative flex items-center justify-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.1em] transition-all px-2.5 lg:px-3 py-2 rounded-sm border-2 italic ${
         isActive
           ? 'text-midnight bg-gold border-gold/40 shadow-hard'
           : 'text-text-tertiary border-transparent hover:text-white hover:border-white/10'

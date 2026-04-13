@@ -51,9 +51,74 @@ const BHASHINI_PIPELINE_ID = process.env.BHASHINI_PIPELINE_ID || '64392f96daac50
 const BHASHINI_BASE_URL = 'https://dhruva-api.bhashini.gov.in/services/inference/pipeline';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp';
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
 const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/chat/completions';
+const GROK_API_KEY = process.env.GROK_API_KEY;
+const GROK_MODEL = process.env.GROK_MODEL || 'grok-2-latest';
+const GROK_BASE_URL = 'https://api.x.ai/v1/chat/completions';
+
+// Helper function for translating text using Gemini (Highly accurate for Indian languages)
+async function translateText(text, sourceLang, targetLang) {
+  if (!GEMINI_API_KEY || sourceLang === targetLang || !text) {
+    return text;
+  }
+
+  try {
+    const langMap = {
+      'en': 'English', 'hi': 'Hindi', 'bn': 'Bengali', 'ta': 'Tamil', 'te': 'Telugu',
+      'mr': 'Marathi', 'gu': 'Gujarati', 'kn': 'Kannada', 'ml': 'Malayalam', 'pa': 'Punjabi',
+      'or': 'Odia', 'as': 'Assamese', 'ur': 'Urdu', 'sa': 'Sanskrit', 'ks': 'Kashmiri',
+      'gom': 'Konkani', 'brx': 'Bodo', 'doi': 'Dogri', 'mai': 'Maithili', 'mni': 'Manipuri',
+      'ne': 'Nepali', 'sd': 'Sindhi', 'sat': 'Santali', 'bho': 'Bhojpuri', 'tcy': 'Tulu',
+      'raj': 'Rajasthani', 'bgc': 'Haryanvi', 'hne': 'Chhattisgarhi', 'mag': 'Magahi',
+      'anp': 'Angika', 'kmu': 'Kumaoni', 'gbm': 'Garhwali', 'awa': 'Awadhi', 'mwr': 'Marwari',
+      'mww': 'Mewati', 'mup': 'Malvi'
+    };
+
+    const sourceName = langMap[sourceLang] || sourceLang;
+    const targetName = langMap[targetLang] || targetLang;
+
+    console.log(`📡 BRIDGE_INIT: [${sourceName} -> ${targetName}] (Length: ${text.length})`);
+
+    const prompt = `TASK: TRANSLATE TO ${targetName.toUpperCase()}
+SOURCE: ${sourceName.toUpperCase()}
+TONE: PROFESSIONAL LEGAL COUNSEL
+RULE: ONLY PROVIDE THE TRANSLATED TEXT. NO INTRO. NO OUTRO. 100% ${targetName.toUpperCase()}.
+
+TEXT_TO_TRANSLATE:
+${text}`;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 }
+      })
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      throw new Error(`Gemini Error ${response.status}: ${errBody}`);
+    }
+    
+    const data = await response.json();
+    const translatedText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    
+    if (!translatedText || translatedText.length < 2) {
+      console.warn('⚠️ Bridge returned empty result. Returning original.');
+      return text;
+    }
+
+    console.log(`✅ BRIDGE_SUCCESS: [${targetName}]`);
+    return translatedText;
+  } catch (err) {
+    console.error(`❌ BRIDGE_FAILURE [${sourceLang}->${targetLang}]:`, err.message);
+    return text; // Return original on absolute failure
+  }
+}
 
 // Security: Validate required environment variables
 const requiredEnvVars = ['PORT', 'NODE_ENV', 'OLLAMA_BASE_URL', 'EMBEDDING_MODEL', 'CHAT_MODEL'];
@@ -74,7 +139,7 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "blob:"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "blob:", "https://*.googleapis.com", "https://*.gstatic.com"],
-      connectSrc: ["'self'", "http://localhost:11434", "http://localhost:3001", "https://*.bhashini.gov.in", "https://*.googleapis.com", "https://api.deepseek.com"],
+      connectSrc: ["'self'", "http://localhost:11434", "http://localhost:3001", "https://*.bhashini.gov.in", "https://*.googleapis.com", "https://api.deepseek.com", "https://api.x.ai"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'", "blob:"],
@@ -377,6 +442,45 @@ async function callDeepSeek(messages, systemPrompt, overrideApiKey = null) {
   };
 }
 
+async function callGrok(messages, systemPrompt, overrideApiKey = null) {
+  const apiKey = overrideApiKey || GROK_API_KEY;
+  if (!apiKey) {
+    throw new Error('Grok API Key missing.');
+  }
+
+  const payload = {
+    model: GROK_MODEL,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      ...messages.map(m => ({ role: m.role, content: m.content }))
+    ],
+    temperature: 0.7,
+    max_tokens: 2048
+  };
+
+  const response = await fetch(GROK_BASE_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Grok API Error: ${response.status} - ${errText}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices[0].message.content;
+
+  return {
+    message: { role: 'assistant', content },
+    model: `Grok (${GROK_MODEL})`
+  };
+}
+
 async function loadAndIndexDocuments() {
   try {
     const allFiles = fs.readdirSync(DOCUMENTS_DIR);
@@ -541,10 +645,11 @@ app.post('/api/voice/process', async (req, res) => {
     const configPayload = {
       pipelineTasks: [
         {
-          taskType: task, // 'asr' or 'tts'
+          taskType: task === 'translate' ? 'nmt' : task, // 'asr', 'tts', or 'nmt'
           config: {
             language: {
-              sourceLanguage: sourceLanguage || 'hi'
+              sourceLanguage: sourceLanguage || 'hi',
+              targetLanguage: targetLanguage || (task === 'translate' ? 'en' : undefined)
             }
           }
         }
@@ -575,7 +680,7 @@ app.post('/api/voice/process', async (req, res) => {
     const computePayload = {
       pipelineTasks: [
         {
-          taskType: task,
+          taskType: task === 'translate' ? 'nmt' : task,
           config: configData.pipelineResponseConfig[0].config,
           input: task === 'asr' 
             ? [{ audioContent }] 
@@ -585,11 +690,11 @@ app.post('/api/voice/process', async (req, res) => {
       pipelineResponseConfig: configData.pipelineResponseConfig
     };
 
-    const computeResponse = await fetch(`${BHASHINI_BASE_URL}/compute`, {
+    const computeResponse = await fetch(configData.pipelineInferenceAPIEndPoint.callbackUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': configData.pipelineInferenceAPIEndPoint.inferenceApiKey.value,
+        [configData.pipelineInferenceAPIEndPoint.inferenceApiKey.name]: configData.pipelineInferenceAPIEndPoint.inferenceApiKey.value,
         'Accept': '*/*'
       },
       body: JSON.stringify(computePayload)
@@ -606,6 +711,11 @@ app.post('/api/voice/process', async (req, res) => {
     if (task === 'asr') {
       res.json({
         transcription: computeData.pipelineResponse[0].output[0].source,
+        raw: computeData
+      });
+    } else if (task === 'translate') {
+      res.json({
+        translatedText: computeData.pipelineResponse[0].output[0].target,
         raw: computeData
       });
     } else {
@@ -725,22 +835,31 @@ app.post('/api/chat', async (req, res) => {
       basePrompt, 
       stream = false,
       provider = 'auto', 
-      apiKeys = {} 
+      apiKeys = {},
+      language = 'en'
     } = req.body;
     
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'Messages array is required' });
     }
 
-    // Get the latest user message to search for context
+    // Get the latest user message
     const latestUserMessage = messages[messages.length - 1].content;
+    let processingMessage = latestUserMessage;
+
+    // Translation Bridge: Step 1 (Input)
+    if (language !== 'en') {
+      console.log(`🌐 System bridging ${language.toUpperCase()} to English for processing...`);
+      processingMessage = await translateText(latestUserMessage, language, 'en');
+      console.log(`📡 Bridged: "${processingMessage}"`);
+    }
     
     let contextStr = '';
     let retrievedSources = [];
     
     if (documentChunks.length > 0) {
       try {
-        const userVector = await embeddings.embedQuery(latestUserMessage);
+        const userVector = await embeddings.embedQuery(processingMessage);
         
         // Calculate scores for all chunks, prioritizing ones that match the jurisdiction if specified
         const scoredChunks = documentChunks.map(chunk => {
@@ -792,6 +911,12 @@ app.post('/api/chat', async (req, res) => {
     } else {
       systemPrompt += `\n\nCRITICAL CONVERSATIONAL RULE: Keep your conversational responses clear, articulate, and well-formatted. Do not output raw JSON objects in this mode. Use elegant bullet points and line breaks.`;
     }
+
+    systemPrompt += `\n\nCRITICAL LANGUAGE RULE: You are a Polyglot Legal Master. You MUST respond in the EXACT SAME LANGUAGE that the user is using.
+    - Support for all 22 scheduled languages of India is MANDATORY (Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Odia, Assamese, Urdu, Sanskrit, Konkani, Kashmiri, Sindhi, Manipuri, Nepali, Dogri, Bodo, Maithili, Santali).
+    - If the user asks in a regional language (e.g., Bengali), you MUST respond in Bengali.
+    - If the user uses a mix of languages (Hinglish, Tamlish, Benglish), respond in that same conversational mix but maintain legal precision.
+    - DO NOT default to English unless the user's query is in English. This is critical for rural and multi-lingual accessibility in the Indian legal system.`;
 
     systemPrompt += contextStr;
 
@@ -855,10 +980,18 @@ app.post('/api/chat', async (req, res) => {
         }
 
         const data = await ollamaResponse.json();
+        let content = data.message.content;
+
+        // Translation Bridge: Step 2 (Output)
+        if (language !== 'en' && content) {
+          console.log(`🌐 System bridging local response back to ${language.toUpperCase()}...`);
+          content = await translateText(content, 'en', language);
+        }
+
         res.json({ 
           message: { 
             role: 'assistant', 
-            content: data.message.content 
+            content: content 
           },
           metadata: {
             sources: retrievedSources,
@@ -883,13 +1016,27 @@ app.post('/api/chat', async (req, res) => {
         } else if (provider === 'deepseek') {
           finalResult = await callDeepSeek(messages, systemPrompt, apiKeys.deepseek);
           usedProvider = 'DeepSeek (User Controlled)';
+        } else if (provider === 'grok') {
+          finalResult = await callGrok(messages, systemPrompt, apiKeys.grok);
+          usedProvider = 'Grok (User Controlled)';
         } else {
           // Fall back to Ollama if forced provider is ollama or invalid
           throw ollamaErr; 
         }
       } else {
-        // Waterfall Tier 2: Gemini
-        if (apiKeys.gemini || GEMINI_API_KEY) {
+        // Waterfall Tier 2: Grok
+        if (apiKeys.grok || GROK_API_KEY) {
+          try {
+            finalResult = await callGrok(messages, systemPrompt, apiKeys.grok);
+            usedProvider = 'Grok (Cloud Default)';
+          } catch (grokErr) {
+            console.warn(`⚠️ Grok primary fallback failed: ${grokErr.message}. Shifting to Gemini...`);
+            errorChain.push(`Grok: ${grokErr.message}`);
+          }
+        }
+
+        // Waterfall Tier 3: Gemini
+        if (!finalResult && (apiKeys.gemini || GEMINI_API_KEY)) {
           try {
             finalResult = await callGemini(messages, systemPrompt, apiKeys.gemini);
             usedProvider = 'Gemini (Cloud Fallback)';
@@ -899,7 +1046,7 @@ app.post('/api/chat', async (req, res) => {
           }
         }
 
-        // Waterfall Tier 3: DeepSeek
+        // Waterfall Tier 4: DeepSeek
         if (!finalResult && (apiKeys.deepseek || DEEPSEEK_API_KEY)) {
           try {
             finalResult = await callDeepSeek(messages, systemPrompt, apiKeys.deepseek);
@@ -912,6 +1059,12 @@ app.post('/api/chat', async (req, res) => {
       }
 
       if (finalResult) {
+        // Translation Bridge: Step 2 (Output)
+        if (language !== 'en' && finalResult.message?.content) {
+          console.log(`🌐 System bridging response back to ${language.toUpperCase()}...`);
+          finalResult.message.content = await translateText(finalResult.message.content, 'en', language);
+        }
+
         res.json({
           ...finalResult,
           metadata: {

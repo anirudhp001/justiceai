@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import LoadingSpinner from './components/ui/LoadingSpinner';
 import ScrollToTop from './components/ui/ScrollToTop';
 import CommandPalette from './components/ui/CommandPalette';
@@ -8,12 +8,6 @@ import ErrorBoundary from './components/ui/ErrorBoundary';
 import { ToastProvider } from './components/ui/Toast';
 import FloatingVoiceButton from './components/voice/FloatingVoiceButton';
 import './index.css';
-
-const handleGlobalTranscription = (text) => {
-  // Dispatch a custom event that any page (like ChatPage) can listen for
-  const event = new CustomEvent('justice-ai-transcription', { detail: { text } });
-  window.dispatchEvent(event);
-};
 
 // Lazy-loaded pages for optimal bundle splitting
 const LandingPage = lazy(() => import('./pages/LandingPage.jsx'));
@@ -51,6 +45,29 @@ function PageLoader() {
   );
 }
 
+function VoiceInfrastructure({ children }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleGlobalTranscription = (text) => {
+    // If not on the chat page, navigate to it and pass the text
+    if (location.pathname !== '/chat') {
+      navigate('/chat', { state: { voiceQuery: text } });
+    } else {
+      // If already on chat page, just dispatch the event
+      const event = new CustomEvent('justice-ai-transcription', { detail: { text } });
+      window.dispatchEvent(event);
+    }
+  };
+
+  return (
+    <>
+      <FloatingVoiceButton onTranscription={handleGlobalTranscription} />
+      {children}
+    </>
+  );
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
@@ -58,34 +75,35 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Router>
           <div className="grain-overlay" aria-hidden="true" />
           <ScrollToTop />
-          <CommandPalette />
-          <FloatingVoiceButton onTranscription={handleGlobalTranscription} />
-          <Suspense fallback={<PageLoader />}>
-            <Routes>
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/chat" element={<ChatPage />} />
-              <Route path="/documents" element={<DocumentsPage />} />
-              <Route path="/rights" element={<RightsPage />} />
-              <Route path="/estimator" element={<EstimatorPage />} />
-              <Route path="/lawyers" element={<LawyerFinderPage />} />
-              <Route path="/tracker" element={<CaseTrackerPage />} />
-              <Route path="/quiz" element={<LegalQuizPage />} />
-              <Route path="/limitation" element={<LimitationCalculatorPage />} />
-              <Route path="/legal-aid" element={<LegalAidCheckerPage />} />
-              <Route path="/glossary" element={<GlossaryPage />} />
-              <Route path="/about" element={<AboutPage />} />
-              <Route path="/faq" element={<FAQPage />} />
-              <Route path="/samples" element={<SamplesPage />} />
-              <Route path="/lawyer-onboarding" element={<LawyerOnboardingPage />} />
-              <Route path="/disclaimer" element={<DisclaimerPage />} />
-              <Route path="/privacy" element={<PrivacyPage />} />
-              <Route path="/auth" element={<AuthPage />} />
-              <Route path="/showcase" element={<ShowcasePage />} />
-              <Route path="/settings" element={<IntelligenceSelectionTerminal />} />
-              <Route path="*" element={<NotFoundPage />} />
-            </Routes>
-          </Suspense>
+          <VoiceInfrastructure>
+            <CommandPalette />
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/chat" element={<ChatPage />} />
+                <Route path="/documents" element={<DocumentsPage />} />
+                <Route path="/rights" element={<RightsPage />} />
+                <Route path="/estimator" element={<EstimatorPage />} />
+                <Route path="/lawyers" element={<LawyerFinderPage />} />
+                <Route path="/tracker" element={<CaseTrackerPage />} />
+                <Route path="/quiz" element={<LegalQuizPage />} />
+                <Route path="/limitation" element={<LimitationCalculatorPage />} />
+                <Route path="/legal-aid" element={<LegalAidCheckerPage />} />
+                <Route path="/glossary" element={<GlossaryPage />} />
+                <Route path="/about" element={<AboutPage />} />
+                <Route path="/faq" element={<FAQPage />} />
+                <Route path="/samples" element={<SamplesPage />} />
+                <Route path="/lawyer-onboarding" element={<LawyerOnboardingPage />} />
+                <Route path="/disclaimer" element={<DisclaimerPage />} />
+                <Route path="/privacy" element={<PrivacyPage />} />
+                <Route path="/auth" element={<AuthPage />} />
+                <Route path="/showcase" element={<ShowcasePage />} />
+                <Route path="/settings" element={<IntelligenceSelectionTerminal />} />
+                <Route path="*" element={<NotFoundPage />} />
+              </Routes>
+            </Suspense>
+          </VoiceInfrastructure>
         </Router>
       </ToastProvider>
     </ErrorBoundary>

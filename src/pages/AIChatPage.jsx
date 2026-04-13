@@ -1,7 +1,46 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Send, Sparkles, ShieldCheck, Scale, Cpu } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Send, Sparkles, ShieldCheck, Scale, Cpu, Globe, ChevronDown } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+
+const BHASHINI_LANGUAGES = [
+  { code: 'en', name: 'English' },
+  { code: 'hi', name: 'Hindi' },
+  { code: 'bn', name: 'Bengali' },
+  { code: 'ta', name: 'Tamil' },
+  { code: 'te', name: 'Telugu' },
+  { code: 'mr', name: 'Marathi' },
+  { code: 'gu', name: 'Gujarati' },
+  { code: 'kn', name: 'Kannada' },
+  { code: 'ml', name: 'Malayalam' },
+  { code: 'pa', name: 'Punjabi' },
+  { code: 'or', name: 'Odia' },
+  { code: 'as', name: 'Assamese' },
+  { code: 'ur', name: 'Urdu' },
+  { code: 'sa', name: 'Sanskrit' },
+  { code: 'ks', name: 'Kashmiri' },
+  { code: 'gom', name: 'Konkani' },
+  { code: 'brx', name: 'Bodo' },
+  { code: 'doi', name: 'Dogri' },
+  { code: 'mai', name: 'Maithili' },
+  { code: 'mni', name: 'Manipuri' },
+  { code: 'ne', name: 'Nepali' },
+  { code: 'sd', name: 'Sindhi' },
+  { code: 'sat', name: 'Santali' },
+  { code: 'bho', name: 'Bhojpuri' },
+  { code: 'tcy', name: 'Tulu' },
+  { code: 'raj', name: 'Rajasthani' },
+  { code: 'bgc', name: 'Haryanvi' },
+  { code: 'hne', name: 'Chhattisgarhi' },
+  { code: 'mag', name: 'Magahi' },
+  { code: 'anp', name: 'Angika' },
+  { code: 'kmu', name: 'Kumaoni' },
+  { code: 'gbm', name: 'Garhwali' },
+  { code: 'awa', name: 'Awadhi' },
+  { code: 'mwr', name: 'Marwari' },
+  { code: 'mww', name: 'Mewati' },
+  { code: 'mup', name: 'Malvi' },
+];
 
 function TypewriterEffect({ text, speed = 8, onComplete }) {
   const [displayedText, setDisplayedText] = useState('');
@@ -24,7 +63,28 @@ function TypewriterEffect({ text, speed = 8, onComplete }) {
 
 export default function AIChatPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const messagesEndRef = useRef(null);
+
+  // Handle Voice Transcription Event
+  useEffect(() => {
+    const handleTranscription = (event) => {
+      const text = event.detail.text;
+      if (text) sendMessage(text);
+    };
+
+    window.addEventListener('justice-ai-transcription', handleTranscription);
+    return () => window.removeEventListener('justice-ai-transcription', handleTranscription);
+  }, []);
+
+  // Handle Voice Query from Redirect
+  useEffect(() => {
+    if (location.state?.voiceQuery) {
+      sendMessage(location.state.voiceQuery);
+      // Clean state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
   
   const [messages, setMessages] = useState(() => {
     try {
@@ -47,6 +107,7 @@ How may I assist you with your legal matters today?`,
   });
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState('en');
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -84,9 +145,10 @@ How may I assist you with your legal matters today?`,
           personality: 'neutral',
           mode: 'copilot',
           jurisdiction: 'National',
-          basePrompt: `You are JusticeAI's Legal Copilot. Be highly articulate, exceptionally professional, and precise. Your responses should reflect a high-end, premium legal consulting service. Always format cleanly. You have access to local constitutional resources via Openclaw.`,
-          provider: localStorage.getItem('justice_ai_provider') || 'ollama',
+          basePrompt: `You are JusticeAI's Legal Copilot. Be highly articulate, exceptionally professional, and precise. Your responses should reflect a high-end, premium legal consulting service. You have access to local constitutional resources via Openclaw.`,
+          provider: localStorage.getItem('justice_ai_provider') || 'grok',
           apiKeys: JSON.parse(localStorage.getItem('justice_ai_keys') || '{}'),
+          language: selectedLanguage
         }),
       });
 
@@ -205,10 +267,36 @@ How may I assist you with your legal matters today?`,
           </motion.div>
         )}
         <div ref={messagesEndRef} className="h-4" />
+        
+        {/* Institutional Buffer for Sticky Footer */}
+        <div className="h-32 md:h-8" />
       </main>
 
       {/* Input Area */}
-      <footer className="w-full max-w-4xl mx-auto p-4 md:p-8 bg-void/90 backdrop-blur-md sticky bottom-0 border-t border-white/5">
+      <footer className="w-full max-w-4xl mx-auto p-4 md:p-8 bg-void/90 backdrop-blur-md sticky bottom-0 border-t border-white/5 space-y-4">
+        
+        {/* Language Selection Terminal */}
+        <div className="flex items-center gap-4 px-6 py-3 bg-void border-2 border-white/5 rounded-sm w-fit shadow-hard group hover:border-gold/30 transition-all">
+          <Globe className="w-4 h-4 text-gold" />
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-text-tertiary opacity-40">STRATUM_LANGUAGE:</span>
+            <div className="relative">
+              <select
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                className="bg-transparent text-[10px] font-display font-extrabold text-white uppercase tracking-widest border-none focus:ring-0 cursor-pointer appearance-none pr-6 italic"
+              >
+                {BHASHINI_LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code} className="bg-void text-white">
+                    {lang.name.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-3 h-3 text-gold absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+        </div>
+
         <div className="relative flex items-center bg-void rounded-sm border-2 border-white/5 shadow-hard transition-all focus-within:shadow-luxe focus-within:border-gold/40">
           <input
             type="text"
